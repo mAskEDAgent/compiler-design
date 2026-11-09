@@ -1,0 +1,309 @@
+==============================================================
+ COMPILER DESIGN LAB - CYCLE II : HOW TO RUN (TERMINAL)
+==============================================================
+Programs covered:
+  Q1. Lex: strings NOT containing first 4 letters of your name
+  Q2. YACC: valid variable (letter, then letters/digits)
+  Q3. Calculator using Lex and YACC
+  Q4. BNF to YACC, generating an abstract syntax tree (AST)
+  Q5. YACC: syntax check of a C FOR statement
+
+Requirements: gcc, lex (or flex), yacc (or bison)
+  Install on Ubuntu/Debian:   sudo apt install gcc flex bison
+
+
+--------------------------------------------------------------
+ GENERAL RULES (READ THIS FIRST)
+--------------------------------------------------------------
+1. KEEP EACH PROGRAM IN ITS OWN FOLDER.
+   lex always writes lex.yy.c and yacc always writes y.tab.c and
+   y.tab.h. If two programs share a folder, one overwrites the
+   other and you get strange errors.
+
+2. LEX-ONLY program (Q1) - 3 commands:
+        lex file.l
+        gcc lex.yy.c -o name
+        ./name
+
+3. LEX + YACC programs (Q2 to Q5) - 4 commands, IN THIS ORDER:
+        yacc -d file.y        (creates y.tab.c and y.tab.h)
+        lex file.l            (creates lex.yy.c)
+        gcc y.tab.c lex.yy.c -o name
+        ./name
+   The -d flag is required. Without it y.tab.h is not created and
+   the .l file will not compile.
+
+4. If you EDIT either file, run all the commands again.
+
+5. Linker error mentioning yywrap or yylex?
+   Add -ll or -lfl at the end of the gcc line:
+        gcc y.tab.c lex.yy.c -o name -ll
+   (All our programs define yywrap, so this is rarely needed.)
+
+6. "yacc: command not found" but bison is installed?
+        bison -y -d file.y
+   does the same job.
+
+7. Windows: use win_flex / win_bison, or WSL. The program is
+   then name.exe instead of ./name.
+
+8. Ending typed input:
+   - Q1 and Q5: press Enter, then Ctrl+D (Linux/macOS).
+     On Windows press Ctrl+Z then Enter.
+   - Q2, Q3, Q4: just press Enter (newline ends the input).
+
+9. To test without typing, pipe the input in:
+        echo "2+3*4" | ./calc
+        ./name < test.txt
+
+
+==============================================================
+ Q1 : LEX - STRINGS NOT CONTAINING 4 LETTERS OF YOUR NAME
+==============================================================
+Files: q1.l   (Lex only, no YACC)
+Example name used: Abhinav -> substring "abhi"
+To use another name, change the four character classes in the
+first rule, e.g. for "john" use  [jJ][oO][hH][nN]
+
+Build and run:
+        lex q1.l
+        gcc lex.yy.c -o q1
+        ./q1
+
+Input: type one line at a time and press Enter. Output appears
+after each line. Press Ctrl+D when finished.
+
+Test inputs and expected output:
+        xxabhiyy        ->  xxabhiyy -> REJECTED
+        abh             ->  abh -> ACCEPTED
+        ababhi          ->  ababhi -> REJECTED
+        ABHI            ->  ABHI -> REJECTED
+        AbHi there      ->  AbHi there -> REJECTED
+        hello           ->  hello -> ACCEPTED
+
+Notes:
+  * The reject rule must be written BEFORE the accept rule.
+    Both match the whole line, so the tie goes to the earlier rule.
+  * If every line is ACCEPTED, the rules are in the wrong order.
+
+
+==============================================================
+ Q2 : YACC - VALID VARIABLE
+==============================================================
+Files: var.l, var.y
+
+Build and run:
+        yacc -d var.y
+        lex var.l
+        gcc y.tab.c lex.yy.c -o var
+        ./var
+
+Input: type one variable name and press Enter.
+Run the program again for each new test.
+
+Test inputs and expected output:
+        a          ->  Valid variable
+        count1     ->  Valid variable
+        x9y2       ->  Valid variable
+        9abc       ->  Invalid variable
+        a_b        ->  Invalid variable
+        a b        ->  Invalid variable
+        (just Enter, empty line)  ->  Invalid variable
+
+Notes:
+  * Underscore is NOT allowed in this question, so a_b is invalid.
+  * Only ONE message should print per run. If you see both
+    "Invalid" and "Valid", the main() check on yyparse() is wrong.
+  * The prompt "Enter a variable:" appears first.
+
+
+==============================================================
+ Q3 : CALCULATOR USING LEX AND YACC
+==============================================================
+Files: calc.l, calc.y
+
+Build and run:
+        yacc -d calc.y
+        lex calc.l
+        gcc y.tab.c lex.yy.c -o calc
+        ./calc
+
+Input: type ONE expression and press Enter. The program handles
+one expression per run, so run it again for the next one.
+Spaces are allowed:  2 + 3 * 4
+Or without typing:   echo "2+3*4" | ./calc
+
+Test inputs and expected output (after the prompt):
+        2+3*4        ->  Result = 14
+        (2+3)*4      ->  Result = 20
+        8-3-2        ->  Result = 3
+        10-4/2-1     ->  Result = 7
+        7/2          ->  Result = 3.5
+        -5+2         ->  Result = -3   (see note 2)
+        5/0          ->  Error: division by zero
+                         Result = 0
+        2+*3         ->  Error: invalid expression
+        (2+3         ->  Error: invalid expression
+
+Notes:
+  1. Running yacc should print NO "conflicts" warning. If it
+     does, the %left lines are missing or wrong. The order is:
+        %left '+' '-'
+        %left '*' '/'
+     (later line = higher precedence)
+  2. -5+2 works only if you kept the unary minus parts
+     (%right UMINUS and the rule with %prec UMINUS). If you
+     removed them, this input gives "invalid expression" instead,
+     which is fine for the lab.
+  3. #define YYSTYPE double must be in BOTH calc.l and calc.y,
+     and in calc.l it must come BEFORE #include "y.tab.h".
+     If numbers print as garbage, check this first.
+  4. calc.l needs #include <stdlib.h> for atof.
+
+
+==============================================================
+ Q4 : BNF TO YACC, ABSTRACT SYNTAX TREE
+==============================================================
+Files: ast.h, ast.l, ast.y   (all three in the SAME folder)
+
+Build and run:
+        yacc -d ast.y
+        lex ast.l
+        gcc y.tab.c lex.yy.c -o ast
+        ./ast
+
+Input: type one expression using + - * / ( ), numbers and
+variable names, then press Enter.
+
+Test 1:   a+b*c
+Expected:
+        +
+            a
+            *
+                b
+                c
+
+Test 2:   (a+b)*c
+Expected:
+        *
+            +
+                a
+                b
+            c
+
+Test 3:   x*(y-3)/z
+Expected:
+        /
+            *
+                x
+                -
+                    y
+                    3
+            z
+
+Test 4:   a+
+Expected:  Invalid expression
+
+How to read the output: each level of the tree is indented 4
+more spaces. An operator is the parent, and the two lines
+indented under it are its left and right operands.
+Parentheses never appear in the tree.
+
+Notes:
+  * ast.h must be in the same folder. It holds the node structure
+    and #define YYSTYPE node *
+  * Include order matters in ast.l: ast.h first, then y.tab.h.
+  * ast.y needs stdlib.h and string.h (malloc, strdup).
+
+
+==============================================================
+ Q5 : YACC - SYNTAX OF A C FOR STATEMENT
+==============================================================
+Files: for.l, for.y
+
+Build and run (the executable is called forcheck because "for"
+is a shell keyword and would confuse you):
+        yacc -d for.y
+        lex for.l
+        gcc y.tab.c lex.yy.c -o forcheck
+        ./forcheck
+
+Input: type the statement, press Enter, then press Ctrl+D.
+(Newlines are skipped as whitespace so a body can span lines,
+which is why Enter alone does not finish the input.)
+Or put it in a file:   ./forcheck < test.txt
+
+--- Tests with the FULL for.y (empty parts, nesting allowed) ---
+VALID statements (output: Valid FOR statement):
+        for(i=0;i<10;i++) x=x+1;
+        for(i=0;i<n;i++){ s=s+i; }
+        for(;;) ;
+        for(i=0;;) ;
+        for(i=0;i<10;i--){}
+        for(i=0;i<10;i++) for(j=0;j<5;j++) x=1;
+
+INVALID statements (output: Invalid FOR statement):
+        for(i=0;i<10) x=1;              (only one ; inside)
+        for i=0;i<10;i++) x=1;          (missing opening bracket)
+        for(i=0;i<10;i++){ x=1;         (missing closing brace)
+
+--- If you use the SHORT version of for.y ---
+The short grammar is stricter. Use these tests instead:
+VALID:
+        for(i=0;i<10;i++) x=1;
+        for(i=0;i<n;i--){ x=1; y=2; }
+INVALID:
+        for(i=0;i<10) x=1;
+        for(;;) ;                 (empty parts not allowed)
+        for(i=0;i<10;i++) x=x+1;  (body allows only x=name/number)
+        for(i=0;i<10;i++){ }      (braces need at least one item)
+
+Notes:
+  * "for" must be written BEFORE the identifier rule in for.l, so
+    that the keyword wins the tie. "format" is still an ID because
+    it is longer.
+  * "i++" is read as ID then INC because ++ is a longer match than
+    a single +.
+  * This program only checks syntax. It does not check whether
+    variables are declared.
+
+
+==============================================================
+ COMMON ERRORS AND FIXES
+==============================================================
+ Error / symptom                         Likely cause / fix
+ --------------------------------------  -------------------------
+ y.tab.h: No such file                   forgot -d, or ran lex
+                                         before yacc
+ 'NAME' undeclared in the .l file        token not in %token, or
+                                         y.tab.h not included
+ Valid input always says invalid         a Lex rule has no return,
+                                         or newline does not
+                                         return 0
+ Program seems to hang                   no end of input: press
+                                         Enter (Q2-Q4) or Ctrl+D
+                                         (Q1, Q5)
+ conflicts: N shift/reduce               %left / %right missing
+ Numbers print as garbage                YYSTYPE not defined the
+                                         same way in both files
+ undefined reference to yywrap           add int yywrap(){return 1;}
+                                         or compile with -ll
+ Strange errors after switching          old lex.yy.c / y.tab.c in
+ programs                                the folder: use a new
+                                         folder per program
+ syntax error near a rule in .y          missing ; at the end of a
+                                         grammar rule
+
+
+==============================================================
+ QUICK CHECKLIST BEFORE THE EXAM
+==============================================================
+  [ ] One folder per program, correct file names
+  [ ] yacc -d  ->  lex  ->  gcc y.tab.c lex.yy.c   (this order)
+  [ ] Every Lex rule that feeds YACC has a return
+  [ ] Newline rule returns 0 (Q2, Q3, Q4)
+  [ ] Tokens declared with %token, y.tab.h included in the .l file
+  [ ] Q3: precedence lines in the right order, YYSTYPE in both files
+  [ ] Q4: ast.h in the same folder
+  [ ] Test with the sample inputs and compare with expected output
+==============================================================

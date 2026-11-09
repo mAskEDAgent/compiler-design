@@ -1,0 +1,179 @@
+==============================================================
+ COMPILER DESIGN LAB - CYCLE I : HOW TO RUN (TERMINAL)
+==============================================================
+Programs covered:
+  1. Lexical Analyzer            -> lexer.c
+  2. Epsilon-closure of NFA      -> eclosure.c
+  3. Epsilon-NFA to NFA          -> enfa_to_nfa.c
+
+Requirements: gcc installed (Linux / macOS / MinGW or WSL on Windows)
+Tip: keep each program in the same folder you run it from.
+
+
+--------------------------------------------------------------
+ GENERAL RULES FOR PROGRAMS 2 AND 3 (automata programs)
+--------------------------------------------------------------
+* States are numbered 0, 1, 2, ... n-1  (NOT q0, q1 -> just the number)
+* Epsilon is typed as a small letter  e   (so 'e' cannot be a normal
+  input symbol)
+* Input symbols are single characters (a, b, c, 0, 1 ...)
+* Each transition is written on its own line as:
+        from  symbol  to
+  example:  0 a 1   means state 0 goes to state 1 on 'a'
+  example:  1 e 2   means state 1 goes to state 2 on epsilon
+* Separate values with spaces or newlines. Nothing else is needed.
+* Do not use more states than the program's limit (see each program).
+* To avoid retyping, save the input in a file and run:
+        ./program < input.txt
+
+
+==============================================================
+ PROGRAM 1 : LEXICAL ANALYZER  (lexer.c)
+==============================================================
+Compile:
+        gcc lexer.c -o lexer
+
+Input:
+  The program does NOT ask for typed input. It reads a file named
+        input.c
+  which must be in the SAME folder as the executable.
+  Create it first, for example:
+
+        int x = 10; // set x
+        if (x >= 5) { x = x + 1; }
+
+Run:
+        ./lexer              (Linux / macOS)
+        lexer.exe            (Windows)
+
+Expected output (token, then TAB, then its type):
+        int     KEYWORD
+        x       IDENTIFIER
+        =       OPERATOR
+        10      NUMBER
+        ;       SEPARATOR
+        if      KEYWORD
+        (       SEPARATOR
+        x       IDENTIFIER
+        >=      OPERATOR
+        5       NUMBER
+        )       SEPARATOR
+        {       SEPARATOR
+        x       IDENTIFIER
+        =       OPERATOR
+        x       IDENTIFIER
+        +       OPERATOR
+        1       NUMBER
+        ;       SEPARATOR
+        }       SEPARATOR
+
+Notes:
+  * Spaces, tabs, newlines are skipped.
+  * // single-line and /* multi-line */ comments are skipped.
+  * "Cannot open input.c" means the file is missing or is in a
+    different folder from where you ran the program.
+  * Other test ideas: a<=b   "hello"   3.14   @  (@ shows as UNKNOWN)
+
+
+==============================================================
+ PROGRAM 2 : EPSILON-CLOSURE OF ALL STATES  (eclosure.c)
+==============================================================
+Compile:
+        gcc eclosure.c -o eclosure
+
+Run:
+        ./eclosure
+
+Limit: at most 20 states.
+
+Input order (the program prompts for each one):
+  1. Number of states
+  2. Number of transitions
+  3. That many lines of:   from  symbol  to     (e = epsilon)
+
+Sample input:
+        3
+        3
+        0 e 1
+        1 e 2
+        0 a 1
+
+Expected output:
+        e-closure(q0) = { q0 q1 q2 }
+        e-closure(q1) = { q1 q2 }
+        e-closure(q2) = { q2 }
+
+Notes:
+  * Count ALL transitions (epsilon and normal ones) in step 2.
+    Normal transitions like "0 a 1" are accepted but ignored.
+  * A state is always in its own closure.
+
+
+==============================================================
+ PROGRAM 3 : EPSILON-NFA TO NFA WITHOUT EPSILON  (enfa_to_nfa.c)
+==============================================================
+Compile:
+        gcc enfa_to_nfa.c -o enfa_to_nfa
+
+Run:
+        ./enfa_to_nfa
+
+Limit: at most 10 states.
+
+Input order (the program prompts for each one):
+  1. Number of states
+  2. Number of input symbols (do NOT count epsilon)
+  3. The symbols themselves, separated by spaces   e.g.  a b c
+  4. Number of transitions (count epsilon ones too)
+  5. That many lines of:   from  symbol  to     (e = epsilon)
+  6. Number of final states
+  7. The final states, separated by spaces
+
+IMPORTANT (most common cause of crashes):
+  * Every symbol used in a transition MUST be listed in step 3,
+    otherwise the program reads invalid memory.
+  * Step 4 must equal the exact number of transition lines you type.
+  * State numbers must be between 0 and (states - 1).
+
+Sample input:
+        3
+        3
+        a b c
+        5
+        0 a 0
+        0 e 1
+        1 b 1
+        1 e 2
+        2 c 2
+        1
+        2
+
+Expected output:
+        d'(q0,a) = { q0 q1 q2 }
+        d'(q0,b) = { q1 q2 }
+        d'(q0,c) = { q2 }
+        d'(q1,a) = { }
+        d'(q1,b) = { q1 q2 }
+        d'(q1,c) = { q2 }
+        d'(q2,a) = { }
+        d'(q2,b) = { }
+        d'(q2,c) = { q2 }
+        Final states: q0 q1 q2
+
+Notes:
+  * States 0 and 1 became final because their epsilon-closure
+    contains the original final state 2.
+  * If the NFA has no final states, enter 0 in step 6 and skip step 7.
+
+
+==============================================================
+ QUICK CHECKLIST BEFORE THE EXAM
+==============================================================
+  [ ] File saved with the right name and .c extension
+  [ ] Compiled with no errors:  gcc file.c -o name
+  [ ] Lexer: input.c exists in the same folder
+  [ ] Automata: states numbered from 0, epsilon typed as e
+  [ ] Transition count matches the number of lines typed
+  [ ] All symbols declared (Program 3)
+  [ ] Test with the sample input first, compare with expected output
+==============================================================

@@ -1,0 +1,364 @@
+==============================================================
+ COMPILER DESIGN LAB - CYCLE III : HOW TO RUN (TERMINAL)
+==============================================================
+Programs covered:
+  Q1. Operator precedence parser            -> opp.c
+  Q2. FIRST and FOLLOW of any grammar       -> ff.c
+  Q3. Recursive descent parser (expression) -> rdp.c
+  Q4. Shift-reduce parser                   -> sr.c
+
+All four are plain C programs. NO Lex or YACC is needed in this
+cycle. Requirement: gcc only.
+
+
+--------------------------------------------------------------
+ GENERAL RULES (READ THIS FIRST)
+--------------------------------------------------------------
+1. Compile and run each program like this:
+        gcc file.c -o name
+        ./name
+   On Windows the program is name.exe.
+
+2. WRITE 'i' FOR AN IDENTIFIER in Q1 and Q4 (i+i*i, not a+b*c).
+   Q3 accepts real names and numbers (a, x1, 42).
+
+3. NO SPACES inside typed input for Q1, Q2 and Q4. These programs
+   read with scanf("%s"), which stops at the first space.
+   Q3 is the only one that allows spaces (it uses fgets).
+
+4. Do NOT type the $ end marker. Q1 and Q4 add it themselves.
+
+5. To avoid retyping, save the input in a file and run:
+        ./name < input.txt
+   For Q3 (fgets) you can also do:   echo "i+i*i" | ./rdp
+
+6. Compare your output with the expected output in each section.
+   Spacing of the table columns may differ slightly. The
+   sequence of actions is what matters.
+
+
+==============================================================
+ Q1 : OPERATOR PRECEDENCE PARSER   (opp.c)
+==============================================================
+Compile and run:
+        gcc opp.c -o opp
+        ./opp
+
+Grammar handled:  E -> E+E | E-E | E*E | E/E | (E) | i
+Allowed symbols in the input:  i  +  -  *  /  (  )
+
+Input: ONE expression, no spaces, then press Enter.
+       Do not type $.
+
+Test input:   i+i*i
+Expected output:
+        STACK          INPUT        ACTION
+        $              i+i*i$       Shift i
+        $i             +i*i$        Reduce i -> E
+        $E             +i*i$        Shift +
+        $E+            i*i$         Shift i
+        $E+i           *i$          Reduce i -> E
+        $E+E           *i$          Shift *
+        $E+E*          i$           Shift i
+        $E+E*i         $            Reduce i -> E
+        $E+E*E         $            Reduce E*E -> E
+        $E+E           $            Reduce E+E -> E
+        $E             $            ACCEPT
+
+More tests:
+        i*i+i      ->  ACCEPT
+        (i+i)*i    ->  ACCEPT
+        i-i-i      ->  ACCEPT
+        i+*i       ->  Error: invalid handle '*E'
+        i+         ->  Error: invalid handle 'E+'
+        (i+i       ->  Error: no relation between ( and $
+        ii         ->  Error: no relation between i and i
+        a+b        ->  Error: invalid symbol 'a'
+
+Notes:
+  * The important line in the trace is "$E+E  *i$  Shift *".
+    Because + <. *, the + waits and * is reduced first.
+  * Letters other than i are rejected as invalid symbols.
+  * To change the grammar (for example add ^), edit the idx()
+    function and the table[][] array, and extend the operator
+    check in the handle test.
+
+
+==============================================================
+ Q2 : FIRST AND FOLLOW   (ff.c)
+==============================================================
+Compile and run:
+        gcc ff.c -o ff
+        ./ff
+
+Input format (follow it exactly):
+  Line 1 : number of productions (count ALL lines, one per
+           alternative)
+  Then   : one production per line, written as   A=xyz
+           - NO spaces anywhere in a production
+           - UPPERCASE letters are non-terminals
+           - everything else is a terminal
+           - # means epsilon
+           - alternatives go on SEPARATE lines
+                (A -> a | b  is typed as two lines: A=a and A=b)
+  The left side of the FIRST production is the start symbol.
+
+--- Test 1 : expression grammar ---
+Input:
+        8
+        E=TR
+        R=+TR
+        R=#
+        T=FY
+        Y=*FY
+        Y=#
+        F=(E)
+        F=i
+(R stands for E', Y stands for T')
+
+Expected output:
+        FIRST(E) = { ( i }
+        FIRST(R) = { # + }
+        FIRST(T) = { ( i }
+        FIRST(Y) = { # * }
+        FIRST(F) = { ( i }
+
+        FOLLOW(E) = { $ ) }
+        FOLLOW(R) = { $ ) }
+        FOLLOW(T) = { $ ) + }
+        FOLLOW(Y) = { $ ) + }
+        FOLLOW(F) = { $ ) * + }
+
+--- Test 2 : grammar with several epsilons ---
+Input:
+        9
+        S=aBDh
+        B=cC
+        C=bC
+        C=#
+        D=EF
+        E=g
+        E=#
+        F=f
+        F=#
+
+Expected output:
+        FIRST(S) = { a }
+        FIRST(B) = { c }
+        FIRST(C) = { # b }
+        FIRST(D) = { # f g }
+        FIRST(E) = { # g }
+        FIRST(F) = { # f }
+
+        FOLLOW(S) = { $ }
+        FOLLOW(B) = { f g h }
+        FOLLOW(C) = { f g h }
+        FOLLOW(D) = { h }
+        FOLLOW(E) = { f h }
+        FOLLOW(F) = { h }
+
+--- Test 3 : small grammar ---
+Input:
+        4
+        S=AB
+        A=a
+        A=#
+        B=b
+
+Expected output:
+        FIRST(S) = { a b }
+        FIRST(A) = { # a }
+        FIRST(B) = { b }
+
+        FOLLOW(S) = { $ }
+        FOLLOW(A) = { b }
+        FOLLOW(B) = { $ }
+
+Notes:
+  * # in a FIRST set means epsilon. It never appears in FOLLOW.
+  * Elements inside a set are printed in ASCII order. The order
+    inside a set does not matter.
+  * If the count on line 1 does not match the number of
+    production lines, the program reads wrong data.
+  * Left side must be ONE uppercase letter. Use R for E' and Y
+    for T' (primes cannot be typed).
+
+
+==============================================================
+ Q3 : RECURSIVE DESCENT PARSER   (rdp.c)
+==============================================================
+Compile and run:
+        gcc rdp.c -o rdp
+        ./rdp
+
+Grammar (left recursion already removed):
+        E  -> T E'
+        E' -> + T E' | - T E' | epsilon
+        T  -> F T'
+        T' -> * F T' | / F T' | epsilon
+        F  -> ( E ) | id
+
+Input: ONE expression, then Enter. Spaces ARE allowed here.
+       Names and numbers are any run of letters and digits
+       (a, x1, 42).
+
+Test input:   i+i
+Expected output:
+        Call trace:
+        E
+          T
+            F
+            T'
+          E'
+            T
+              F
+              T'
+            E'
+
+        Valid expression
+
+Test input:   i*i
+Call order: E, T, F, T', F, T', E'   then   Valid expression
+
+More tests:
+        i+i*i      ->  Valid expression
+        (a+b)*c    ->  Valid expression
+        x1 + 42    ->  Valid expression
+        (i+i)*i    ->  Valid expression
+        a+         ->  Invalid expression
+        (a+b       ->  Invalid expression
+        a b        ->  Invalid expression
+        i)         ->  Invalid expression
+        i+*i       ->  Invalid expression
+        (empty line, just Enter)  ->  Invalid expression
+
+Notes:
+  * The call trace is printed even for invalid input, followed
+    by the Invalid message.
+  * "a b" and "i)" are rejected only because main() checks that
+    ALL input was consumed after E() returns.
+  * Indentation in the trace shows how deep the recursion is.
+
+
+==============================================================
+ Q4 : SHIFT-REDUCE PARSER   (sr.c)
+==============================================================
+Compile and run:
+        gcc sr.c -o sr
+        ./sr
+
+Input format (the program prompts for each):
+  1. Number of productions
+  2. The productions, one per line, as   A=xyz   (no spaces,
+     uppercase = non-terminal, no epsilon rules)
+  3. The input string, no spaces, using i for an identifier
+The left side of the FIRST production is the start symbol.
+
+IMPORTANT: the precedence check is written for rules named
+exactly  E=E+E  and  E=E-E  . Keep the non-terminal called E
+and type those rules exactly like that when using the
+expression grammar.
+
+--- Test 1 : expression grammar ---
+Input:
+        6
+        E=E+E
+        E=E-E
+        E=E*E
+        E=E/E
+        E=(E)
+        E=i
+        i+i*i
+
+Expected output:
+        STACK            INPUT          ACTION
+        $                i+i*i$         Shift i
+        $i               +i*i$          Reduce E -> i
+        $E               +i*i$          Shift +
+        $E+              i*i$           Shift i
+        $E+i             *i$            Reduce E -> i
+        $E+E             *i$            Shift *
+        $E+E*            i$             Shift i
+        $E+E*i           $              Reduce E -> i
+        $E+E*E           $              Reduce E -> E*E
+        $E+E             $              Reduce E -> E+E
+        $E               $              ACCEPT
+
+More tests with the same 6 productions (change only the last
+line):
+        i*i+i      ->  ACCEPT
+        (i+i)*i    ->  ACCEPT
+        i-i-i      ->  ACCEPT
+        i+         ->  REJECT
+        (i+i       ->  REJECT
+        ii         ->  REJECT
+        i+*i       ->  REJECT
+
+--- Test 2 : a^n b^n grammar ---
+Input:
+        2
+        S=aSb
+        S=ab
+        aabb
+
+Expected output:
+        STACK            INPUT          ACTION
+        $                aabb$          Shift a
+        $a               abb$           Shift a
+        $aa              bb$            Shift b
+        $aab             b$             Reduce S -> ab
+        $aS              b$             Shift b
+        $aSb             $              Reduce S -> aSb
+        $S               $              ACCEPT
+
+        Input aab   ->  REJECT (stack ends as aS, nothing left)
+
+Notes:
+  * When several rules match the top of the stack, the LONGEST
+    right side is chosen.
+  * At "$E+E   *i$" the parser shifts instead of reducing,
+    because * has higher precedence than +. This is the line to
+    explain in the viva.
+  * This simple parser has no state table, so it works for
+    grammars like these but not for every grammar. Real LR
+    parsers (YACC) add states and lookahead.
+
+
+==============================================================
+ COMMON ERRORS AND FIXES
+==============================================================
+ Symptom                              Likely cause / fix
+ -----------------------------------  ---------------------------
+ Program reads only part of the       spaces in the input. Q1, Q2
+ input                                and Q4 stop at the first
+                                      space
+ "invalid symbol" in Q1               used a, b, c instead of i
+ Wrong FIRST/FOLLOW or garbage        production count on line 1
+                                      does not match the lines
+ Epsilon rule not recognised          typed e or epsilon instead
+                                      of #
+ Q2/Q4 nothing matches               lowercase letter used for a
+                                      non-terminal (must be A-Z)
+ Q4 accepts but with wrong            rule not typed exactly as
+ grouping                             E=E+E / E=E-E
+ Q3 accepts "a b"                     missing the final check that
+                                      the whole input was used
+ gcc: undefined reference to ...      forgot -o name, or compiled
+                                      the wrong file
+ Segmentation fault                   input string longer than 100
+                                      characters
+
+
+==============================================================
+ QUICK CHECKLIST BEFORE THE EXAM
+==============================================================
+  [ ] File saved with the right name and a .c extension
+  [ ] Compiled with no errors:  gcc file.c -o name
+  [ ] Typed input has NO spaces (except in Q3)
+  [ ] Used i for identifiers in Q1 and Q4
+  [ ] Q2: counted the productions, used # for epsilon, one
+      alternative per line
+  [ ] Q4: kept the non-terminal named E for the expression grammar
+  [ ] Ran the sample input first and compared with the expected
+      output
+==============================================================

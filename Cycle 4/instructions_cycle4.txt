@@ -1,0 +1,284 @@
+==============================================================
+ COMPILER DESIGN LAB - CYCLE IV : HOW TO RUN (TERMINAL)
+==============================================================
+Programs covered:
+  Q1. Intermediate code generation (three-address code)
+                                              -> icg.c
+  Q2. Back end: three-address code to 8086 assembly
+                                              -> backend.c
+
+Both are plain C programs. No Lex or YACC is needed.
+Requirement: gcc.
+
+The two programs are LINKED by a file:
+  icg.c       writes   tac.txt      (three-address code)
+  backend.c   reads    tac.txt      and writes  output.asm
+
+So you must RUN icg FIRST, and BOTH programs must be run from
+the SAME FOLDER.
+
+
+--------------------------------------------------------------
+ GENERAL RULES (READ THIS FIRST)
+--------------------------------------------------------------
+1. Compile each program:
+        gcc icg.c -o icg
+        gcc backend.c -o backend
+   On Windows the programs are icg.exe and backend.exe.
+
+2. Normal order of use:
+        ./icg          (type an assignment, e.g. a=b+c*d-e)
+        ./backend      (type values for the input variables)
+
+3. The files tac.txt and output.asm are created in the folder
+   where you run the programs.
+
+4. If you run icg with an INVALID expression, it does NOT write
+   a new tac.txt. The OLD tac.txt stays there, so the back end
+   would translate the previous expression. Always check that
+   icg printed the three-address code before running backend.
+
+
+==============================================================
+ Q1 : INTERMEDIATE CODE GENERATION   (icg.c)
+==============================================================
+Compile and run:
+        gcc icg.c -o icg
+        ./icg
+
+Grammar handled:
+        id = E
+        E -> T { (+|-) T }
+        T -> F { (*|/) F }
+        F -> ( E ) | id | number
+
+Input: ONE assignment statement, then press Enter.
+       Form:  name = expression
+       Names and numbers: letters, digits, underscore.
+       Spaces are allowed:   a = b + c
+
+Test input:   a=b+c*d-e
+Expected output:
+        Three-address code:
+        t1 = c * d
+        t2 = b + t1
+        t3 = t2 - e
+        a = t3
+
+        Quadruples:
+        Op     Arg1     Arg2     Result
+        *      c        d        t1
+        +      b        t1       t2
+        -      t2       e        t3
+        =      t3       -        a
+
+The same three-address code is saved in tac.txt.
+
+More tests (three-address code produced):
+  a=b+c        ->  t1 = b + c
+                   a = t1
+  a=b+c*d      ->  t1 = c * d
+                   t2 = b + t1
+                   a = t2
+  a=(b+c)*d    ->  t1 = b + c
+                   t2 = t1 * d
+                   a = t2
+  z=a-b-c      ->  t1 = a - b
+                   t2 = t1 - c
+                   z = t2          (left to right)
+  z=a-(b-c)    ->  t1 = b - c
+                   t2 = a - t1
+                   z = t2
+  r=a/b*c      ->  t1 = a / b
+                   t2 = t1 * c
+                   r = t2
+  x=a*b+c/d-e  ->  t1 = a * b
+                   t2 = c / d
+                   t3 = t1 + t2
+                   t4 = t3 - e
+                   x = t4
+  y=5+x*2      ->  t1 = x * 2
+                   t2 = 5 + t1
+                   y = t2
+  a=b          ->  a = b           (no temporaries)
+
+Invalid input:
+  a=b+         ->  Invalid expression
+  a=(b+c       ->  Invalid expression
+  =b+c         ->  Invalid: expected   id = expression
+
+Notes:
+  * Instructions appear in PRECEDENCE order, not text order.
+    In a=b+c*d the multiplication is generated first.
+  * Each temporary (t1, t2 ...) holds one intermediate result.
+  * A plain variable or number never gets its own temporary.
+  * The program handles ONE statement per run.
+
+
+==============================================================
+ Q2 : BACK END, TAC TO 8086 ASSEMBLY   (backend.c)
+==============================================================
+Compile and run:
+        gcc backend.c -o backend
+        ./backend
+
+Before running: tac.txt must exist in the same folder (run icg
+first).
+
+Input: no expression is typed. The program asks:
+        Enter value of <name>:
+for every INPUT variable, i.e. every name that is used before
+it is assigned (like b, c, d, e in a=b+c*d-e). It asks in the
+order the names first appear in tac.txt. Type a small
+non-negative whole number for each.
+
+--- Test 1 : the full example ---
+Step 1:   ./icg      then type   a=b+c*d-e
+Step 2:   ./backend
+The prompts appear in the order c, d, b, e. Enter:
+        4   3   10   5
+
+Expected output:
+        .MODEL SMALL
+        .STACK 100H
+        .DATA
+            c DW 4
+            d DW 3
+            t1 DW 0
+            b DW 10
+            t2 DW 0
+            e DW 5
+            t3 DW 0
+            a DW 0
+        .CODE
+        MAIN PROC
+            MOV AX, @DATA
+            MOV DS, AX
+
+            ; t1 = c * d
+            MOV AX, c
+            MOV BX, d
+            MUL BX
+            MOV t1, AX
+
+            ; t2 = b + t1
+            MOV AX, b
+            ADD AX, t1
+            MOV t2, AX
+
+            ; t3 = t2 - e
+            MOV AX, t2
+            SUB AX, e
+            MOV t3, AX
+
+            ; a = t3
+            MOV AX, t3
+            MOV a, AX
+
+            MOV AH, 4CH
+            INT 21H
+        MAIN ENDP
+        END MAIN
+
+Hand check:  t1 = 4*3 = 12,  t2 = 10+12 = 22,  t3 = 22-5 = 17
+             so the final value of a is 17.
+The same text is saved in output.asm.
+
+--- More tests (write tac.txt by hand if you want) ---
+Format of tac.txt: one instruction per line, tokens separated by
+single spaces exactly like this:
+        t1 = b + c
+        a = t1
+A line without spaces (t1=b+c) is skipped by the program.
+
+  tac.txt                       inputs        expected result
+  ----------------------------  ------------  ---------------
+  t1 = b + c                    b=6, c=9      a = 15
+  a = t1
+  t1 = x * 2                    x=7           t1 = 14, y = 19
+  t2 = 5 + t1
+  y = t2
+  t1 = a / b                    a=20, b=4     r = 5
+  r = t1
+  z = k                         k=8           z = 8
+
+For the division test, the generated code must contain:
+            ; t1 = a / b
+            MOV AX, a
+            MOV DX, 0
+            MOV BX, b
+            DIV BX
+            MOV t1, AX
+MOV DX, 0 must come BEFORE DIV. If it is missing, the result is
+wrong.
+
+For the second test, the number 2 and 5 are used directly:
+            MOV BX, 2
+            ADD AX, t1     (after MOV AX, 5)
+
+
+--------------------------------------------------------------
+ RUNNING THE ASSEMBLY (emu8086)
+--------------------------------------------------------------
+1. Open emu8086, create a new file, paste the contents of
+   output.asm.
+2. Click Compile, then Emulate.
+3. Press Run, or use Single Step to watch AX and BX change.
+4. Click "vars" in the emulator window to see the values of
+   t1, t2, t3 and a. For Test 1, a must show 17.
+
+If your lab uses DOSBox with MASM/TASM, the same file can be
+assembled, linked and stepped through in a debugger.
+
+Rules for the assembly to run correctly:
+  * Do NOT use register or instruction names as variable names:
+        ax bx cx dx ah al bh bl ch cl dh dl si di sp bp
+        ds cs es ss add sub mul div mov
+  * Assemblers are case-insensitive: t1 and T1 clash.
+  * MUL and DIV here are UNSIGNED 16-bit. Use small positive
+    whole numbers. (Negative numbers would need IMUL, IDIV and
+    CWD, which this program does not generate.)
+  * Division gives only the whole-number quotient (20/6 = 3).
+    The remainder is left in DX.
+
+
+==============================================================
+ COMMON ERRORS AND FIXES
+==============================================================
+ Symptom                              Likely cause / fix
+ -----------------------------------  ---------------------------
+ "Cannot open tac.txt"                icg was not run first, or you
+                                      are in a different folder
+ Back end translates the wrong        last icg input was invalid,
+ expression                           so the old tac.txt is still
+                                      there. Rerun icg with a
+                                      valid expression
+ Instruction missing in output.asm    that line of tac.txt had no
+                                      spaces around = and the
+                                      operator
+ Back end asks for t1, t2             tac.txt was hand-written in
+                                      the wrong order (a temporary
+                                      used before it is assigned)
+ Assembler error on a variable name   name clashes with a register
+                                      or instruction (ax, add, ...)
+ Wrong result after DIV               MOV DX, 0 missing, or numbers
+                                      too large / negative
+ Wrong result after MUL               result above 65535 does not
+                                      fit in 16 bits
+ Quadruple table shows ?              icg hit an invalid expression
+ Invalid: expected id = expression    statement does not start with
+                                      "name ="
+
+
+==============================================================
+ QUICK CHECKLIST BEFORE THE EXAM
+==============================================================
+  [ ] Both programs compiled with no errors
+  [ ] icg run first and it printed the three-address code
+  [ ] backend run in the SAME folder as tac.txt
+  [ ] Entered small positive whole numbers for the inputs
+  [ ] output.asm pasted into emu8086, compiled, and the final
+      variable value matches your hand calculation
+  [ ] Can explain: load - operate - store pattern, why MOV DX,0
+      before DIV, why MUL/DIV need BX, and why MOV DS,AX is needed
+==============================================================
